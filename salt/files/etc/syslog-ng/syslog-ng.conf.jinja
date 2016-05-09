@@ -1,0 +1,286 @@
+@version: 3.5
+@include "scl.conf"
+
+{% set server, listen_addr = salt['mine.get']('roles:syslog', 'network.ip_addrs', expr_form='grain').items()[0] %}
+
+options {
+        chain_hostnames(0);
+        time_reopen(10);
+        time_reap(360);
+        log_fifo_size({{ pillar['syslog_log_fifo_size'] }});
+        create_dirs(yes);
+        owner("root");
+        group("adm");
+        perm(0640);
+        #dir_owner(root);
+        #dir_group(root);
+        dir_perm(0755);
+        use_dns(no);
+        log_msg_size(9216);
+        stats_freq(600);
+        bad_hostname("^gconfd$");
+        flush_lines(0);
+        use_fqdn(no);
+};
+
+source s_src {
+        system();
+        internal();
+        syslog(flags("no-multi-line"));
+        unix-stream("/dev/log" flags("no-multi-line"));
+        file("/proc/kmsg" program_override("kernel: "));
+        udp(ip(127.0.0.1));
+        {%- if 'syslog' in grains['roles'] %}
+        tcp(ip("0.0.0.0") port(514) max-connections(1000) log_iw_size(400000) log_fetch_limit(100) );
+        {%- endif %}
+};
+
+destination d_auth { file("/var/log/auth.log"); };
+destination d_cron { file("/var/log/cron.log"); };
+destination d_daemon { file("/var/log/daemon.log"); };
+destination d_kern { file("/var/log/kern.log"); };
+destination d_lpr { file("/var/log/lpr.log"); };
+destination d_mail { file("/var/log/mail.log"); };
+destination d_syslog { file("/var/log/syslog"); };
+destination d_user { file("/var/log/user.log"); };
+destination d_uucp { file("/var/log/uucp.log"); };
+destination d_healthchk { file("/var/log/swift/healthchk.log"); };
+destination d_local0 { file("/var/log/swift/proxy.log"); };
+destination d_local0_err { file("/var/log/swift/proxy.error"); };
+{%- if 'hourly_logs' in grains['roles'] %}
+destination d_local0_hourly { file("/var/log/swift/hourly/$YEAR$MONTH$DAY$HOUR"); };
+{%- endif %}
+destination d_local1 { file("/var/log/swift/storage.log"); };
+destination d_local1_err { file("/var/log/swift/storage.error"); };
+destination d_local2 { file("/var/log/swift/jobs.log"); };
+destination d_local2_err { file("/var/log/swift/jobs.error"); };
+destination d_local3 { file("/var/log/swift/drive-audit.log"); };
+destination d_local3_err { file("/var/log/swift/drive-audit.error"); };
+destination d_local4 { file("/var/log/haproxy.log"); };
+destination d_local4_err { file("/var/log/haproxy.error"); };
+{%- if 'syslog' not in grains['roles'] %}
+destination d_remote { tcp({{ listen_addr[0] }} port(514)); };
+{%- endif %}
+{%- if 'statsdlog' in grains['roles'] %}
+destination df_local_statsdlog { udp(127.0.0.1 port(8126)); #route to local statsdlog server };
+{%- endif %}
+destination d_mailinfo { file("/var/log/mail/mail.info"); };
+destination d_mailwarn { file("/var/log/mail/mail.warn"); };
+destination d_mailerr { file("/var/log/mail/mail.err"); };
+destination d_newscrit { file("/var/log/news/news.crit"); };
+destination d_newserr { file("/var/log/news/news.err"); };
+destination d_newsnotice { file("/var/log/news/news.notice"); };
+destination d_debug { file("/var/log/debug"); };
+destination d_error { file("/var/log/error"); };
+destination d_messages { file("/var/log/messages"); };
+destination d_console { usertty("root"); };
+destination d_console_all { file("/dev/tty10"); };
+destination d_xconsole { pipe("/dev/xconsole"); };
+destination d_ppp { file("/var/log/ppp.log"); };
+
+filter f_local0 { facility(local0) and level(info,debug) and
+            not ( match("GET /healthcheck HTTP/1.0" value("MSG"))
+                or match("GET /healthcheck HTTP/1.1" value("MSG"))
+                or match("GET /lbstats%3Bcsv%3Bnorefresh HTTP/1.1" value("MSG"))
+                or match("GET /lbstats%3Bcsv%3Bnorefresh HTTP/1.0" value("MSG"))); };
+
+filter f_local0_err { facility(local0) and not level(info,debug) and
+            not ( match("GET /healthcheck HTTP/1.0" value("MSG"))
+                or match("GET /healthcheck HTTP/1.1" value("MSG"))
+                or match("GET /lbstats%3Bcsv%3Bnorefresh HTTP/1.1" value("MSG"))
+                or match("GET /lbstats%3Bcsv%3Bnorefresh HTTP/1.0" value("MSG"))); };
+
+filter f_healthchk { match("GET /healthcheck HTTP/1.0" value("MSG"))
+            or match("GET /healthcheck HTTP/1.1" value("MSG"))
+            or match("GET /lbstats%3Bcsv%3Bnorefresh HTTP/1.1" value("MSG"))
+            or match("GET /lbstats%3Bcsv%3Bnorefresh HTTP/1.0" value("MSG")); };
+
+filter f_local1 { facility(local1) and level(info,debug); };
+filter f_local1_err { facility(local1) and not level(info,debug); };
+filter f_local2 { facility(local2) and level(info,debug); };
+filter f_local2_err { facility(local2) and not level(info,debug); };
+filter f_local3 { facility(local3) and level(info,debug); };
+filter f_local3_err { facility(local3) and not level(info,debug); };
+filter f_local4 { facility(local4) and level(info,debug); };
+filter f_local4_err { facility(local4) and not level(info,debug); };
+filter f_dbg { level(debug); };
+filter f_info { level(info); };
+filter f_notice { level(notice); };
+filter f_warn { level(warn); };
+filter f_err { level(err); };
+filter f_crit { level(crit .. emerg); };
+filter f_debug { level(debug) and not facility(auth, authpriv, news, mail); };
+filter f_error { level(err .. emerg) and not facility(local0, local1, local2, local3); };
+filter f_messages { level(info,notice,warn) and not facility(auth,authpriv,cron,daemon,mail,news,local0, local1, local2, local3); };
+filter f_auth { facility(auth, authpriv) and not filter(f_debug); };
+filter f_cron { facility(cron) and not filter(f_debug); };
+filter f_daemon { facility(daemon) and not filter(f_debug); };
+filter f_kern { facility(kern) and not filter(f_debug); };
+filter f_lpr { facility(lpr) and not filter(f_debug); };
+filter f_local { facility(local0, local1, local3, local4) and not filter(f_debug); };
+filter f_mail { facility(mail) and not filter(f_debug); };
+filter f_news { facility(news) and not filter(f_debug); };
+filter f_syslog3 {  not facility(auth, authpriv, mail, local0, local1, local2, local3, local4) and not filter(f_debug); };
+filter f_user { facility(user) and not filter(f_debug); };
+filter f_uucp { facility(uucp) and not filter(f_debug); };
+filter f_cnews { level(notice, err, crit) and facility(news); };
+filter f_cother { level(debug, info, notice, warn) or facility(daemon, mail); };
+filter f_ppp { facility(local2) and not filter(f_debug); };
+filter f_console { level(warn .. emerg); };
+
+log { source(s_src); filter(f_auth); destination(d_auth); };
+log { source(s_src); filter(f_cron); destination(d_cron); };
+log { source(s_src); filter(f_daemon); destination(d_daemon); };
+log { source(s_src); filter(f_kern); destination(d_kern); };
+log { source(s_src); filter(f_lpr); destination(d_lpr); };
+log { source(s_src); filter(f_syslog3); destination(d_syslog); };
+log { source(s_src); filter(f_user); destination(d_user); };
+log { source(s_src); filter(f_uucp); destination(d_uucp); };
+log { source(s_src); filter(f_mail); destination(d_mail); };
+#log { source(s_src); filter(f_mail); filter(f_info); destination(d_mailinfo); };
+#log { source(s_src); filter(f_mail); filter(f_warn); destination(d_mailwarn); };
+#log { source(s_src); filter(f_mail); filter(f_err); destination(d_mailerr); };
+log { source(s_src); filter(f_news); filter(f_crit); destination(d_newscrit); };
+log { source(s_src); filter(f_news); filter(f_err); destination(d_newserr); };
+log { source(s_src); filter(f_news); filter(f_notice); destination(d_newsnotice); };
+#log { source(s_src); filter(f_cnews); destination(d_console_all); };
+#log { source(s_src); filter(f_cother); destination(d_console_all); };
+#log { source(s_src); filter(f_ppp); destination(d_ppp); };
+log { source(s_src); filter(f_debug); destination(d_debug); };
+log { source(s_src); filter(f_error); destination(d_error); };
+log { source(s_src); filter(f_messages); destination(d_messages); };
+log { source(s_src); filter(f_console); destination(d_console_all); destination(d_xconsole); };
+log { source(s_src); filter(f_crit); destination(d_console); };
+
+# local0.info                        -/var/log/swift/proxy.log
+# write to local file and to remove log server
+log {
+        source(s_src);
+        filter(f_local0);
+        destination(d_local0);
+        {%- if 'hourly_logs' in grains['roles'] %}
+        destination(d_local0_hourly);
+        {%- endif %}
+        {%- if 'syslog' not in grains['roles'] %}
+        destination(d_remote);
+        {%- endif %}
+};
+
+# local0.error                        -/var/log/swift/proxy.error
+# write to local file and to remove log server
+log {
+        source(s_src);
+        filter(f_local0_err);
+        destination(d_local0_err);
+        {%- if 'syslog' not in grains['roles'] %}
+        destination(d_remote);
+        {%- endif %}
+        {%- if 'statsdlog' in grains['roles'] -%}
+        destination(df_local_statsdlog);
+        {% endif %}
+};
+
+# Puts all health check into a local file
+log {
+        source(s_src);
+        filter(f_healthchk);
+        destination(d_healthchk);
+};
+
+# local1.info                        -/var/log/swift/storage.log
+# write to local file and to remote log server
+log {
+        source(s_src);
+        filter(f_local1);
+        destination(d_local1);
+        {%- if 'syslog' not in grains['roles'] %}
+        destination(d_remote);
+        {%- endif %}
+};
+
+# local1.error                        -/var/log/swift/storage.error
+# write to local file and to remote log server
+log {
+        source(s_src);
+        filter(f_local1_err);
+        destination(d_local1_err);
+        {%- if 'syslog' not in grains['roles'] %}
+        destination(d_remote);
+        {%- endif %}
+        {%- if 'statsdlog' in grains['roles'] -%}
+        destination(df_local_statsdlog);
+        {% endif %}
+
+};
+
+# local2.info                        -/var/log/swift/jobs.log
+# write to local file and to remote log server
+log {
+        source(s_src);
+        filter(f_local2);
+        destination(d_local2);
+        {%- if 'syslog' not in grains['roles'] %}
+        destination(d_remote);
+        {%- endif %}
+};
+
+# local2.error                        -/var/log/swift/jobs.error
+# write to local file and to remote log server
+log {
+        source(s_src);
+        filter(f_local2_err);
+        destination(d_local2_err);
+        {%- if 'syslog' not in grains['roles'] %}
+        destination(d_remote);
+        {%- endif %}
+        {%- if 'statsdlog' in grains['roles'] -%}
+        destination(df_local_statsdlog);
+        {% endif %}
+};
+
+# local3.info                        -/var/log/swift/drive-audit.log
+# write to local file and to remote log server
+log {
+        source(s_src);
+        filter(f_local3);
+        destination(d_local3);
+};
+
+# local3.error                        -/var/log/swift/drive-audit.error
+# write to local file and to remote log server
+log {
+        source(s_src);
+        filter(f_local3_err);
+        destination(d_local3_err);
+        {%- if 'statsdlog' in grains['roles'] -%}
+        destination(df_local_statsdlog);
+        {% endif %}
+};
+
+# local4.info                        -/var/log/haproxy.log
+# write to local file and to remote log server
+log {
+        source(s_src);
+        filter(f_local4);
+        destination(d_local4);
+        {%- if 'syslog' not in grains['roles'] %}
+        destination(d_remote);
+        {%- endif %}
+
+};
+
+# local4.error                        -/var/log/haproxy.error
+# write to local file and to remote log server
+log {
+        source(s_src);
+        filter(f_local4_err);
+        destination(d_local4_err);
+        {%- if 'syslog' not in grains['roles'] %}
+        destination(d_remote);
+        {%- endif %}
+        {%- if 'statsdlog' in grains['roles'] -%}
+        destination(df_local_statsdlog);
+        {% endif %}
+};
+
+#@include "/etc/syslog-ng/conf.d/*.conf"

@@ -1,0 +1,88 @@
+[DEFAULT]
+workers = {{ pillar['swift']['proxy']['workers'] }}
+bind_port = 80
+trans_id_suffix = {{ pillar['swift']['proxy']['trans_id_suffix'] }}
+log_max_line_length = {{ pillar['swift']['proxy']['log_max_line_length'] }}
+log_udp_host = 127.0.0.1
+log_udp_port = 514
+
+[pipeline:main]
+pipeline = {{ pillar['swift']['proxy']['pipeline'] }}
+
+[app:proxy-server]
+use = egg:swift#proxy
+set log_facility = LOG_LOCAL0
+allow_account_management = {{ pillar['swift']['proxy']['allow_account_management'] }}
+account_autocreate = {{ pillar['swift']['proxy']['account_autocreate'] }}
+log_handoffs = {{ pillar['swift']['proxy']['log_handoffs'] }}
+max_containers_per_account = {{ pillar['swift']['proxy']['max_containers_per_account'] }}
+max_containers_whitelist = {{ pillar['swift']['proxy']['max_containers_whitelist'] }}
+strict_cors_mode = {{ pillar['swift']['proxy']['strict_cors_mode'] }}
+request_node_count = {{ pillar['swift']['proxy']['request_node_count'] }}
+recoverable_node_timeout = {{ pillar['swift']['proxy']['recoverable_node_timeout'] }}
+node_timeout = {{ pillar['swift']['proxy']['node_timeout'] }}
+conn_timeout = {{ pillar['swift']['proxy']['conn_timeout'] }}
+
+[filter:healthcheck]
+use = egg:swift#healthcheck
+disable_path = {{ pillar['swift']['proxy']['healthcheck_disable_path'] }}
+
+[filter:swauth]
+use = egg:swauth#swauth
+set log_facility = LOG_LOCAL0
+reseller_prefix = {{ pillar['swift']['proxy']['swauth_reseller_prefix'] }}
+auth_prefix = /auth/
+default_swift_cluster = {{ pillar['swift']['proxy']['swauth_default_swift_cluster'] }}
+super_admin_key = {{ pillar['swift']['proxy']['swauth_super_admin_key'] }}
+
+[filter:proxy-logging]
+use = egg:swift#proxy_logging
+
+[filter:cache]
+use = egg:swift#memcache
+memcache_serialization_support = {{ pillar['swift']['proxy']['memcache_serialization_support'] }}
+
+[filter:bulk]
+use = egg:swift#bulk
+yield_frequency = {{ pillar['swift']['proxy']['bulk_yield_frequency'] }}
+
+[filter:slo]
+use = egg:swift#slo
+
+[filter:container-quotas]
+use = egg:swift#container_quotas
+
+[filter:ratelimit]
+use = egg:swift#ratelimit
+container_ratelimit_0 = {{ pillar['swift']['proxy']['container_ratelimit'] }}
+account_ratelimit = {{ pillar['swift']['proxy']['account_ratelimit'] }}
+account_whitelist = {{ pillar['swift']['proxy']['account_whitelist'] }}
+
+[filter:catch_errors]
+use = egg:swift#catch_errors
+
+[filter:staticweb]
+use = egg:swift#staticweb
+
+[filter:informant]
+use = egg:informant#informant
+{% set server, statsd_addr = salt['mine.get']('roles:statsd', 'network.ip_addrs', expr_form='grain').items()[0] %}
+statsd_host = {{ statsd_addr[0] }}
+statsd_port = 8125
+standard statsd sample rate 0.0 <= 1
+statsd_sample_rate = {{ pillar['swift']['proxy']['informant_statsd_sample_rate'] }}
+combined_events = {{ pillar['swift']['proxy']['informant_combined_events'] }}
+metric_name_prepend = servers.{{ grains['nodename']|lower() }}.
+
+[filter:tempurl]
+use = egg:swift#tempurl
+methods = {{ pillar['swift']['proxy']['tempurl_methods'] }}
+
+[filter:formpost]
+use = egg:swift#formpost
+
+[filter:dlo]
+use = egg:swift#dlo
+
+[filter:gatekeeper]
+use = egg:swift#gatekeeper

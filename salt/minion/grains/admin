@@ -1,0 +1,8 @@
+roles:
+  - admin
+  - swift
+  - saltmaster
+  - syslog
+  - statsd
+  - carbon
+  - graphite

@@ -1,5 +1,7 @@
 general:
   network: 10.0.0
+admin:
+  ip: 10.0.0.10
 lb:
   host_port: 8080
 proxy:

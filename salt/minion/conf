@@ -1,11 +1,12 @@
+mine_interval: 5
+state_output: full
+state_verbose: True
+recon_randomize: True
+
 include:
   - /etc/salt/grains
 
-file_client: local
-file_roots:
-  base:
-    - /vagrant/salt/files
-    - /vagrant/salt/states
-pillar_roots:
-  base:
-    - /vagrant/salt/pillar
+schedule:
+  sync:
+    function: saltutil.sync_all
+    seconds: 600

@@ -1,0 +1,11 @@
+auto_accept: True
+state_output: full
+state_verbose: true
+
+file_roots:
+  base:
+    - /srv/salt/files
+    - /srv/salt/states
+pillar_roots:
+  base:
+    - /srv/salt/pillar

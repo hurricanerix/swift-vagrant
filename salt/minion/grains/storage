@@ -1,0 +1,6 @@
+roles:
+  - swift
+  - swift-object
+  - swift-container
+  - swift-account
+  - hourly_logs

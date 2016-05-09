@@ -1,0 +1,8 @@
+[program:{{ processname }}]
+user = {{ run_as }}
+command = {{ command }}
+stdout_logfile = /var/log/supervisor/{{ processname }}.log
+stderr_logfile = /var/log/supervisor/{{ processname }}.err
+autorestart = {{ autorestart }}
+autostart = {{ autostart }}
+directory = {{ directory }}

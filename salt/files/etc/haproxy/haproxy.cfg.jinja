@@ -1,0 +1,43 @@
+global
+    log       127.0.0.1 local4
+    log-send-hostname
+    maxconn   {{ pillar['haproxy_global_maxconn'] }}
+    tune.bufsize 65536
+    user      haproxy
+    group     haproxy
+    nbproc    {{ pillar['haproxy_nbproc'] }}
+    daemon
+
+defaults
+    mode            http
+    balance         roundrobin
+    option          httplog
+    option          log-separate-errors
+    option          dontlognull
+    option          http-server-close
+    option          tcp-smart-accept
+    option          tcp-smart-connect
+    option          accept-invalid-http-response
+    option          splice-auto
+    retries         3
+    timeout connect 4s
+    timeout client  700s
+    timeout server  120s
+    timeout queue   10s
+    timeout http-request 10s
+    timeout http-keep-alive 5s
+
+frontend swift-storage
+    log     global
+    maxconn {{ pillar['haproxy_frontend_maxconn'] }}
+    bind    {{ pillar['haproxy_listen'] }}
+    default_backend proxy_pool
+
+backend proxy_pool
+    option  httpchk GET /healthcheck
+    option  forwardfor
+    fullconn 9000
+    {% for server, addrs in salt['mine.get']('roles:swift-proxy', 'network.ip_addrs', expr_form='grain') | dictsort() %}
+    server {{ server }} {{ addrs[0] }}:80 check inter 3000 rise 3 fall 5
+    {%- endfor %}
+
