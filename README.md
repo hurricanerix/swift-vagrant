@@ -8,6 +8,7 @@ The goal of this project is to create an environment that better mimics how a pr
 By default, the environment will contain:
 
 * 1 Load Balancer
+* 1 Admin node
 * 2 Proxy nodes (w/ memcache)
 * 4 Storage nodes (w/ account/container/object)
 
